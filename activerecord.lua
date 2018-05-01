@@ -50,11 +50,19 @@ local function print_log(text)
   end
 end
 
-local function SearchMethod(name, require_key, single_result)
+local function search_method(name, require_key, single_result)
   library.search_methods[name] = {
     require_key = require_key,
     single_result = single_result
   }
+end
+
+local function to_snake_case(str)
+	str = str[1]:lower()..str:sub(2, str:len())
+
+	return str:gsub('([a-z])([A-Z])', function(lower, upper)
+		return lower..'_'..string.lower(upper)
+	end)
 end
 
 --- Helpers
@@ -165,28 +173,28 @@ if (SERVER) then
   --- Adds a string to the model schema.
   -- @param name Name of field
   function library.meta.schema:string(name)
-    self[name] = 'VARCHAR(255)'
+    self[to_snake_case(name)] = 'VARCHAR(255)'
     return self
   end
 
   --- Adds a text field to the model schema.
   -- @param name Name of field
   function library.meta.schema:text(name)
-    self[name] = 'TEXT'
+    self[to_snake_case(name)] = 'TEXT'
     return self
   end
 
   --- Adds an integer to the model schema.
   -- @param name Name of field
   function library.meta.schema:integer(name)
-    self[name] = 'INTEGER'
+    self[to_snake_case(name)] = 'INTEGER'
     return self
   end
 
   --- Adds a boolean to the model schema.
   -- @param name Name of field
   function library.meta.schema:boolean(name)
-    self[name] = 'TINYINT(1)'
+    self[to_snake_case(name)] = 'TINYINT(1)'
     return self
   end
 
@@ -304,7 +312,7 @@ if (SERVER) then
     return object
   end
 
-  SearchMethod('all')
+  search_method('all')
   --- Returns all objects with this model.
   -- @param ...
   -- @return Table of objects
@@ -322,7 +330,7 @@ if (SERVER) then
     end
   end
 
-  SearchMethod('first', false, true)
+  search_method('first', false, true)
   --- Returns the first object with this model
   -- @param ...
   -- @return An object
@@ -342,13 +350,15 @@ if (SERVER) then
     end
   end
 
-  SearchMethod('find_by', true, true)
+  search_method('find_by', true, true)
   --- Returns an object with a matching key/value pair.
   -- @param key Name of the property to match
   -- @param value Value of the property to match
   -- @param ...
   -- @return An object
   function library.meta.model:find_by(key, value, ...)
+		key = to_snake_case(key)
+
     if (self.__schema.__sync) then
       local result
 
@@ -439,6 +449,16 @@ if (SERVER) then
     local model = setmetatable({}, self.meta.model)
 
     setup(schema, replication) -- TODO: use pcall here
+
+		-- Setup find_by_* helpers.
+		-- Example: my_obj:find_by_name('foo')
+		for k, v in pairs(schema) do
+			if isstring(k) and isstring(v) then
+				model['find_by_'..k] = function(object, ...)
+					return object:find_by(k, ...)
+				end
+			end
+		end
     
     model.__name = name
     model.__schema = schema
