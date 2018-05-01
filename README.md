@@ -23,11 +23,10 @@ ar.mysql:Connect(); -- Connect to SQLite
 #### Creating models
 Now you'll want to define a model serverside so you can start saving objects.
 ```Lua
-ar:setup_model('user', function(schema)
-	schema
-		:string('steam_id')
-		:string('community_id')
-		:string('name')
+ar:setup_model('user', function(t)
+	t:string('steam_id')
+	t:string('community_id')
+	t:string('name')
 end)
 ```
 
