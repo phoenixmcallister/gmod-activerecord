@@ -24,9 +24,9 @@ ar.mysql:Connect(); -- Connect to SQLite
 Now you'll want to define a model serverside so you can start saving objects.
 ```Lua
 ar:setup_model('user', function(t)
-	t:string('steam_id')
-	t:string('community_id')
-	t:string('name')
+  t:string('steam_id')
+  t:string('community_id')
+  t:string('name')
 end)
 ```
 
@@ -34,9 +34,9 @@ end)
 Once you've created a model or two, you can start creating and storing objects.
 ```Lua
 local user = ar.model.user:New()
-	user.steam_id = 'STEAM_0:1:23456789'
-	user.community_id = '1234567890'
-	user.name = 'John Doe'
+  user.steam_id = 'STEAM_0:1:23456789'
+  user.community_id = '1234567890'
+  user.name = 'John Doe'
 user:save()
 ```
 Objects are edited by simply modifying the fields as you would with a regular table. To commit these changes to the database, call `save()` on the object.
@@ -58,7 +58,7 @@ local user = ar.model.user:find_by_name('John Doe')
 Since these search functions return objects, you can modify and save them as usual.
 ```Lua
 local user = ar.model.user:find_by_name('John Doe')
-	user.name = 'Bob Doe'
+  user.name = 'Bob Doe'
 user:save()
 ```
 
@@ -71,16 +71,16 @@ local user = ar.mode.user:find_by('name', 'John Doe')
 If you want clients to be able to fetch and read objects, you'll need to set up your model to use replication. first off, you'll need to include the library clientside if you want it to work (duh). If you don't need replication, then you don't need to include activerecord clientside. Then, modify your model to include a replication definition.
 ```Lua
 ar:setup_model('user', function(schema, replication)
-	schema
-		:string('steam_id')
-		:string('community_id')
-		:string('name')
-		
-	replication
-		:enable(true)
-		:condition(function(player)
-			return player:IsAdmin()
-		end)
+  schema
+    :string('steam_id')
+    :string('community_id')
+    :string('name')
+    
+  replication
+    :enable(true)
+    :condition(function(player)
+      return player:IsAdmin()
+    end)
 end)
 ```
 Note that we specified a condition function - this is **required** to be defined! Activerecord will yell at you if you don't. Guess what? That's all you need. You can use the same functions on the client to search for objects. You can't save objects - but that's being worked on. :ok_hand:

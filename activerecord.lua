@@ -58,11 +58,11 @@ local function search_method(name, require_key, single_result)
 end
 
 local function to_snake_case(str)
-	str = str[1]:lower()..str:sub(2, str:len())
+  str = str[1]:lower()..str:sub(2, str:len())
 
-	return str:gsub('([a-z])([A-Z])', function(lower, upper)
-		return lower..'_'..string.lower(upper)
-	end)
+  return str:gsub('([a-z])([A-Z])', function(lower, upper)
+    return lower..'_'..string.lower(upper)
+  end)
 end
 
 --- Helpers
@@ -357,7 +357,7 @@ if (SERVER) then
   -- @param ...
   -- @return An object
   function library.meta.model:find_by(key, value, ...)
-		key = to_snake_case(key)
+    key = to_snake_case(key)
 
     if (self.__schema.__sync) then
       local result
@@ -450,15 +450,15 @@ if (SERVER) then
 
     setup(schema, replication) -- TODO: use pcall here
 
-		-- Setup find_by_* helpers.
-		-- Example: my_obj:find_by_name('foo')
-		for k, v in pairs(schema) do
-			if isstring(k) and isstring(v) then
-				model['find_by_'..k] = function(object, ...)
-					return object:find_by(k, ...)
-				end
-			end
-		end
+    -- Setup find_by_* helpers.
+    -- Example: my_obj:find_by_name('foo')
+    for k, v in pairs(schema) do
+      if isstring(k) and isstring(v) then
+        model['find_by_'..k] = function(object, ...)
+          return object:find_by(k, ...)
+        end
+      end
+    end
     
     model.__name = name
     model.__schema = schema
