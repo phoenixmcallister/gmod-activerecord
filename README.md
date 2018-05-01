@@ -16,7 +16,7 @@ Activerecord was designed to run alongside other copies of itself so that multip
 first off, you'll need to include the library and store it somewhere so you can reference it. At this point the library won't do anything until you set a *prefix* for your project. This prefix should be unique to your project to prevent some potentially nasty conflicts with the database. Once the prefix is set and the database is connected, you'll be ready to roll.
 ```Lua
 local ar = include('activerecord.lua')
-ar:SetPrefix('example')
+ar:set_prefix('example')
 ar.mysql:Connect(); -- Connect to SQLite
 ```
 
