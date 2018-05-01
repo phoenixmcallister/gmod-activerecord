@@ -64,7 +64,7 @@ user:save()
 
 You can also do it directly:
 ```lua
-local user = ar.mode.user:find_by('name', 'John Doe')
+local user = ar.model.user:find_by('name', 'John Doe')
 ```
 
 ## Replication
