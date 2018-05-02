@@ -33,7 +33,7 @@ end)
 #### Creating and editing objects
 Once you've created a model or two, you can start creating and storing objects.
 ```Lua
-local user = ar.model.user:New()
+local user = ar.model.user:new()
   user.steam_id = 'STEAM_0:1:23456789'
   user.community_id = '1234567890'
   user.name = 'John Doe'
@@ -87,3 +87,7 @@ Note that we specified a condition function - this is **required** to be defined
 
 ## License
 This library is available the MIT license. Check out the [LICENSE](../master/LICENSE) file.
+
+## Convention over Configuration
+This fork of ActiveRecord is a part of the Luna project. It uses the same coding convention in order to make sure the code looks consistent and that everyone has easier time reading the code written by others.
+To learn more about the convention, please scroll to the bottom of [Luna's Readme file](https://github.com/MrMe0w/Luna/blob/master/README.md).
