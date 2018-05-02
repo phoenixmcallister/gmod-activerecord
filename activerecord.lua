@@ -201,14 +201,14 @@ if (SERVER) then
   --- Sets whether or not the model will sync all in-memory objects with the database.
   -- @param value true/false
   function library.meta.schema:sync(value)
-    self.__sync = tobool(value)
+    self._sync = tobool(value)
     return self
   end
 
   --- Sets callback executed when syncing is completed. Only called if `schema:sync(true)` has been set.
   -- @param callback Function to execute
   function library.meta.schema:on_sync(callback)
-    self.__onsync = callback
+    self._onsync = callback
     return self
   end
 
@@ -252,7 +252,7 @@ if (SERVER) then
   function library.meta.object:save()
     library:queue_push('object', self)
 
-    if (self.__model._schema.__sync and self.__model._replication.enabled) then
+    if (self._model._schema._sync and self._model._replication.enabled) then
       library:network_object(self)
     end
   end
@@ -260,12 +260,10 @@ if (SERVER) then
   --- Returns a string representation of the object. This will include its model and properties.
   -- @return string representation of object
   function library.meta.object:__tostring()
-    local result = string.format('<ActiveRecord object of model %s>:', self.__model.__name)
+    local result = string.format('<ActiveRecord object of model %s>:', self._model._name)
 
     for k, v in pairs(self) do
-      if (string.sub(k, 1, 2) == '__') then
-        continue
-      end
+      if k[1] == '_' then continue end
 
       result = result .. string.format('\n\t%s\t= %s', k, v)
     end
@@ -279,7 +277,7 @@ if (SERVER) then
   --- Networks an object to clients. This does not check if replication is applicable for the object's model, so you'll have to do it yourself!
   -- @param object Object to network
   function library:network_object(object)
-    local model = object.__model
+    local model = object._model
     local players = self:filter_players(model._replication.condition)
 
     if (#players < 1) then
@@ -287,7 +285,7 @@ if (SERVER) then
     end
 
     self:start_net_msg(MESSAGE.UPDATE)
-      net.WriteString(model.__name)
+      net.WriteString(model._name)
       self:write_net_table(self:get_object_table(object))
     net.Send(players[1]) -- TODO: why only the first player?
   end
@@ -300,15 +298,15 @@ if (SERVER) then
   -- @return An object defined by the given model class.
   function library.meta.model:new()
     local object = setmetatable({
-      __model = self,
-      __bsaved = false,
+      _model = self,
+      _saved = false,
     }, library.meta.object)
 
-    if (object.__model._schema.id) then
-      object.id = #library._buffer[self.__name] + 1
+    if (object._model._schema.id) then
+      object.id = #library._buffer[self._name] + 1
     end
 
-    table.insert(library._buffer[self.__name], object)
+    table.insert(library._buffer[self._name], object)
     return object
   end
 
@@ -317,11 +315,11 @@ if (SERVER) then
   -- @param ...
   -- @return Table of objects
   function library.meta.model:all(...)
-    if (self._schema.__sync) then
-      return library._buffer[self.__name]
+    if (self._schema._sync) then
+      return library._buffer[self._name]
     else
       local args = {...}
-      local query = library.db:Select(library:get_table_name(self.__name))
+      local query = library.db:Select(library:get_table_name(self._name))
         query:Callback(function(result)
           local callback = library:get_callback_arg(unpack(args))
           callback(library:build_objects_from_sql(self, result))
@@ -335,11 +333,11 @@ if (SERVER) then
   -- @param ...
   -- @return An object
   function library.meta.model:first(...)
-    if (self._schema.__sync) then
-      return library._buffer[self.__name][1]
+    if (self._schema._sync) then
+      return library._buffer[self._name][1]
     else
       local args = {...}
-      local query = library.db:Select(library:get_table_name(self.__name))
+      local query = library.db:Select(library:get_table_name(self._name))
         query:OrderByAsc('id') -- TODO: account for no id
         query:Limit(1)
         query:Callback(function(result)
@@ -359,10 +357,10 @@ if (SERVER) then
   function library.meta.model:find_by(key, value, ...)
     key = to_snake_case(key)
 
-    if (self._schema.__sync) then
+    if (self._schema._sync) then
       local result
 
-      for k, v in pairs(library._buffer[self.__name]) do
+      for k, v in pairs(library._buffer[self._name]) do
         if (v[key] and tostring(v[key]) == tostring(value)) then -- TODO: unhack this
           result = v
           break
@@ -372,7 +370,7 @@ if (SERVER) then
       return result
     else
       local args = {...}
-      local query = library.db:Select(library:get_table_name(self.__name))
+      local query = library.db:Select(library:get_table_name(self._name))
         query:Where(key, value)
         query:Limit(1)
         query:Callback(function(result)
@@ -409,7 +407,7 @@ if (SERVER) then
         object[k] = v
       end
 
-      object.__bsaved = true
+      object._saved = true
       table.insert(objects, object)
     end
 
@@ -427,9 +425,7 @@ if (SERVER) then
     local result = {}
 
     for k, v in pairs(object) do
-      if (string.sub(k, 1, 2) == '__' or !object.__model._schema[k]) then
-        continue
-      end
+      if k[1] == '_' or !object._model._schema[k] then continue end
 
       result[k] = v
     end
@@ -442,7 +438,7 @@ if (SERVER) then
   -- @param setup Function to execute when setting up the model.
   function library:setup_model(name, setup)
     local schema = setmetatable({
-      __sync = true,
+      _sync = true,
       id = -1
     }, self.meta.schema)
     local replication = setmetatable({}, self.meta.replication)
@@ -460,7 +456,7 @@ if (SERVER) then
       end
     end
     
-    model.__name = name
+    model._name = name
     model._schema = schema
     model._replication = replication
 
@@ -502,15 +498,13 @@ if (SERVER) then
     local data = {}
 
     for k, v in pairs(model._schema) do
-      if (string.sub(k, 1, 2) == '__') then
-        continue
-      end
+      if k[1] == '_' then continue end
 
       data[k] = true
     end
 
     self:start_net_msg(MESSAGE.SCHEMA)
-      net.WriteString(model.__name)
+      net.WriteString(model._name)
       self:write_net_table(data)
     net.Send(players[1]) -- TODO: why only the first player?
   end
@@ -532,7 +526,7 @@ if (SERVER) then
   --- Pulls all of a model's objects from the database and stores it in memory.
   -- @param model The model to sync
   function library:perform_model_sync(model)
-    local query = self.db:Select(self:get_table_name(model.__name))
+    local query = self.db:Select(self:get_table_name(model._name))
       query:Callback(function(result)
         local objects = self:build_objects_from_sql(model, result)
 
@@ -540,8 +534,8 @@ if (SERVER) then
           self:network_object(v)
         end
 
-        if (model._schema.__onsync) then
-          model._schema.__onsync() -- TODO: pcall this
+        if (model._schema._onsync) then
+          model._schema._onsync() -- TODO: pcall this
         end
       end)
     query:Execute()
@@ -557,9 +551,7 @@ if (SERVER) then
       local query = self.db:Create(self:get_table_name(data))
 
       for k, v in pairs(model._schema) do
-        if (string.sub(k, 1, 2) == '__') then
-          continue
-        end
+        if k[1] == '_' then continue end
 
         if (k == 'id') then
           query:Create('id', 'INTEGER NOT NULL AUTO_INCREMENT')
@@ -569,7 +561,7 @@ if (SERVER) then
         end
       end
 
-      if (model._schema.__sync) then
+      if (model._schema._sync) then
         query:Callback(function()
           self:perform_model_sync(model)
         end)
@@ -577,26 +569,24 @@ if (SERVER) then
 
       return query
     elseif (type == 'object') then
-      local model = data.__model
+      local model = data._model
       local query
       local update_func = 'Update'
 
-      if (data.__bsaved) then
-        query = self.db:Update(self:get_table_name(model.__name))
+      if (data._saved) then
+        query = self.db:Update(self:get_table_name(model._name))
         query:Where('id', data.id) -- TODO: account for models without ids
       else
-        query = self.db:Insert(self:get_table_name(model.__name))
+        query = self.db:Insert(self:get_table_name(model._name))
         query:Callback(function(result, status, lastid)
-          data.__bsaved = true
+          data._saved = true
         end)
 
         update_func = 'Insert'
       end
 
       for k, v in pairs(data) do
-        if (string.sub(k, 1, 2) == '__' or k == 'id') then
-          continue
-        end
+        if k[1] == '_' or k == 'id' then continue end
 
         query[update_func](query, k, v)
       end
@@ -649,7 +639,7 @@ if (SERVER) then
         if (model._replication.enabled) then
           self:network_model(model)
 
-          if (model._schema.__sync) then
+          if (model._schema._sync) then
             for k, v in pairs(library._buffer[model_name]) do
               self:network_object(v)
             end
@@ -679,9 +669,9 @@ if (SERVER) then
           local search_method = self.search_methods[method]
 
           if (search_method and
-            (search_method.require_key and string.sub(key, 1, 2) != '__' and schema[key]) or
+            (search_method.require_key and key[1] != '_' and schema[key]) or
             (!search_method.require_key)) then
-            if (schema.__sync) then
+            if (schema._sync) then
               local result = model[method](model, key, value)
 
               self:start_net_msg(MESSAGE.REQUEST)
@@ -791,30 +781,30 @@ if (CLIENT) then
 
   function library.meta.model:new(add_to_buffer)
     local object = setmetatable({
-      __model = self
+      _model = self
     }, library.meta.object)
 
     if (add_to_buffer) then
-      table.insert(library._buffer[self.__name], object)
+      table.insert(library._buffer[self._name], object)
     end
 
     return object
   end
 
   function library.meta.model:all(...)
-    library:request_object(self.__name, {
+    library:request_object(self._name, {
       'all'
     }, library:get_callback_arg(...))
   end
 
   function library.meta.model:first(...)
-    library:request_object(self.__name, {
+    library:request_object(self._name, {
       'first'
     }, library:get_callback_arg(...))
   end
 
   function library.meta.model:find_by(key, value, ...)
-    library:request_object(self.__name, {
+    library:request_object(self._name, {
       'find_by', key, value
     }, library:get_callback_arg(...))
   end
@@ -838,7 +828,7 @@ if (CLIENT) then
   function library:setup_model(name, schema)
     local model = setmetatable({
       _schema = schema,
-      __name = name
+      _name = name
     }, self.meta.model)
 
     self.model[name] = model
