@@ -298,7 +298,7 @@ if (SERVER) then
 
   --- Creates a new object.
   -- @return An object defined by the given model class.
-  function library.meta.model:New()
+  function library.meta.model:new()
     local object = setmetatable({
       __model = self,
       __bsaved = false,
@@ -399,7 +399,7 @@ if (SERVER) then
     local objects = {}
 
     for id, row in pairs(result) do
-      local object = model:New()
+      local object = model:new()
 
       for k, v in pairs(row) do
         if (!model._schema[k] or v == 'NULL') then
@@ -789,7 +789,7 @@ if (CLIENT) then
   --]]
   library.meta.model.__index = library.meta.model
 
-  function library.meta.model:New(add_to_buffer)
+  function library.meta.model:new(add_to_buffer)
     local object = setmetatable({
       __model = self
     }, library.meta.object)
@@ -823,7 +823,7 @@ if (CLIENT) then
     local objects = {}
 
     for id, data in pairs(result) do
-      local object = model:New()
+      local object = model:new()
 
       for k, v in pairs(data) do
         object[k] = v
@@ -905,7 +905,7 @@ if (CLIENT) then
 
         if (!found) then
           print('not found, creating new object')
-          local object = model:New(true)
+          local object = model:new(true)
 
           for k, v in pairs(data) do
             object[k] = v
