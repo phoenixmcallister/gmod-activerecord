@@ -3,14 +3,14 @@
 -- @module ActiveRecord
 
 local library = {
-  __buffer = {},
+  _buffer = {},
   queue = {
     push = {},
     pull = {}
   },
   search_methods = {},
 
-  mysql = mysql,
+  db = mysql,
   config = {
     prefix = 'ar_',
     suppress = false
@@ -26,8 +26,8 @@ local library = {
       condition = nil
     },
     model = {
-      __schema = {},
-      __replication = {}
+      _schema = {},
+      _replication = {}
     },
     object = {}
   },
@@ -155,7 +155,7 @@ if (SERVER) then
   end
 
   function library:set_sql_adapter(table)
-    self.mysql = table
+    self.db = table
   end
 
   --- Class: Schema
@@ -240,8 +240,8 @@ if (SERVER) then
   -- @return Whether or not the player is allowed to request object data
   function library:check_request_condition(model_name, player)
     return (self.model[model_name] and
-      self.model[model_name].__replication.enabled and
-      self.model[model_name].__replication.condition(player))
+      self.model[model_name]._replication.enabled and
+      self.model[model_name]._replication.condition(player))
   end
 
   --- Class: Object
@@ -252,7 +252,7 @@ if (SERVER) then
   function library.meta.object:save()
     library:queue_push('object', self)
 
-    if (self.__model.__schema.__sync and self.__model.__replication.enabled) then
+    if (self.__model._schema.__sync and self.__model._replication.enabled) then
       library:network_object(self)
     end
   end
@@ -280,14 +280,14 @@ if (SERVER) then
   -- @param object Object to network
   function library:network_object(object)
     local model = object.__model
-    local players = self:filter_players(model.__replication.condition)
+    local players = self:filter_players(model._replication.condition)
 
     if (#players < 1) then
       return
     end
 
     self:start_net_msg(MESSAGE.UPDATE)
-      net.Writestring(model.__name)
+      net.WriteString(model.__name)
       self:write_net_table(self:get_object_table(object))
     net.Send(players[1]) -- TODO: why only the first player?
   end
@@ -304,11 +304,11 @@ if (SERVER) then
       __bsaved = false,
     }, library.meta.object)
 
-    if (object.__model.__schema.id) then
-      object.id = #library.__buffer[self.__name] + 1
+    if (object.__model._schema.id) then
+      object.id = #library._buffer[self.__name] + 1
     end
 
-    table.insert(library.__buffer[self.__name], object)
+    table.insert(library._buffer[self.__name], object)
     return object
   end
 
@@ -317,11 +317,11 @@ if (SERVER) then
   -- @param ...
   -- @return Table of objects
   function library.meta.model:all(...)
-    if (self.__schema.__sync) then
-      return library.__buffer[self.__name]
+    if (self._schema.__sync) then
+      return library._buffer[self.__name]
     else
       local args = {...}
-      local query = library.mysql:Select(library:get_table_name(self.__name))
+      local query = library.db:Select(library:get_table_name(self.__name))
         query:Callback(function(result)
           local callback = library:get_callback_arg(unpack(args))
           callback(library:build_objects_from_sql(self, result))
@@ -335,11 +335,11 @@ if (SERVER) then
   -- @param ...
   -- @return An object
   function library.meta.model:first(...)
-    if (self.__schema.__sync) then
-      return library.__buffer[self.__name][1]
+    if (self._schema.__sync) then
+      return library._buffer[self.__name][1]
     else
       local args = {...}
-      local query = library.mysql:Select(library:get_table_name(self.__name))
+      local query = library.db:Select(library:get_table_name(self.__name))
         query:OrderByAsc('id') -- TODO: account for no id
         query:Limit(1)
         query:Callback(function(result)
@@ -359,10 +359,10 @@ if (SERVER) then
   function library.meta.model:find_by(key, value, ...)
     key = to_snake_case(key)
 
-    if (self.__schema.__sync) then
+    if (self._schema.__sync) then
       local result
 
-      for k, v in pairs(library.__buffer[self.__name]) do
+      for k, v in pairs(library._buffer[self.__name]) do
         if (v[key] and tostring(v[key]) == tostring(value)) then -- TODO: unhack this
           result = v
           break
@@ -372,7 +372,7 @@ if (SERVER) then
       return result
     else
       local args = {...}
-      local query = library.mysql:Select(library:get_table_name(self.__name))
+      local query = library.db:Select(library:get_table_name(self.__name))
         query:Where(key, value)
         query:Limit(1)
         query:Callback(function(result)
@@ -402,7 +402,7 @@ if (SERVER) then
       local object = model:New()
 
       for k, v in pairs(row) do
-        if (!model.__schema[k] or v == 'NULL') then
+        if (!model._schema[k] or v == 'NULL') then
           continue
         end
 
@@ -427,7 +427,7 @@ if (SERVER) then
     local result = {}
 
     for k, v in pairs(object) do
-      if (string.sub(k, 1, 2) == '__' or !object.__model.__schema[k]) then
+      if (string.sub(k, 1, 2) == '__' or !object.__model._schema[k]) then
         continue
       end
 
@@ -461,11 +461,11 @@ if (SERVER) then
     end
     
     model.__name = name
-    model.__schema = schema
-    model.__replication = replication
+    model._schema = schema
+    model._replication = replication
 
     self.model[name] = model
-    self.__buffer[name] = self.__buffer[name] or {}
+    self._buffer[name] = self._buffer[name] or {}
 
     if (replication.enabled) then
       assert(replication.condition and type(replication.condition) == 'function', 'Replicated models need to have a condition!')
@@ -493,7 +493,7 @@ if (SERVER) then
   --- Networks a model to clients. This does not check if replication is applicable for the object's model, so you'll have to do it yourself!
   -- @param model Model to network
   function library:network_model(model)
-    local players = self:filter_players(model.__replication.condition)
+    local players = self:filter_players(model._replication.condition)
 
     if (#players < 1) then
       return
@@ -501,7 +501,7 @@ if (SERVER) then
 
     local data = {}
 
-    for k, v in pairs(model.__schema) do
+    for k, v in pairs(model._schema) do
       if (string.sub(k, 1, 2) == '__') then
         continue
       end
@@ -510,7 +510,7 @@ if (SERVER) then
     end
 
     self:start_net_msg(MESSAGE.SCHEMA)
-      net.Writestring(model.__name)
+      net.WriteString(model.__name)
       self:write_net_table(data)
     net.Send(players[1]) -- TODO: why only the first player?
   end
@@ -532,7 +532,7 @@ if (SERVER) then
   --- Pulls all of a model's objects from the database and stores it in memory.
   -- @param model The model to sync
   function library:perform_model_sync(model)
-    local query = self.mysql:Select(self:get_table_name(model.__name))
+    local query = self.db:Select(self:get_table_name(model.__name))
       query:Callback(function(result)
         local objects = self:build_objects_from_sql(model, result)
 
@@ -540,8 +540,8 @@ if (SERVER) then
           self:network_object(v)
         end
 
-        if (model.__schema.__onsync) then
-          model.__schema.__onsync() -- TODO: pcall this
+        if (model._schema.__onsync) then
+          model._schema.__onsync() -- TODO: pcall this
         end
       end)
     query:Execute()
@@ -554,9 +554,9 @@ if (SERVER) then
   function library:build_query(type, data)
     if (type == 'schema') then
       local model = self.model[data]
-      local query = self.mysql:Create(self:get_table_name(data))
+      local query = self.db:Create(self:get_table_name(data))
 
-      for k, v in pairs(model.__schema) do
+      for k, v in pairs(model._schema) do
         if (string.sub(k, 1, 2) == '__') then
           continue
         end
@@ -569,7 +569,7 @@ if (SERVER) then
         end
       end
 
-      if (model.__schema.__sync) then
+      if (model._schema.__sync) then
         query:Callback(function()
           self:perform_model_sync(model)
         end)
@@ -582,10 +582,10 @@ if (SERVER) then
       local update_func = 'Update'
 
       if (data.__bsaved) then
-        query = self.mysql:Update(self:get_table_name(model.__name))
+        query = self.db:Update(self:get_table_name(model.__name))
         query:Where('id', data.id) -- TODO: account for models without ids
       else
-        query = self.mysql:Insert(self:get_table_name(model.__name))
+        query = self.db:Insert(self:get_table_name(model.__name))
         query:Callback(function(result, status, lastid)
           data.__bsaved = true
         end)
@@ -608,7 +608,7 @@ if (SERVER) then
   --- Handles some database stuff. Should be called constantly - about every second is enough.
   -- This is already done automatically.
   function library:think()
-    if (!self.mysql:IsConnected()) then
+    if (!self.db:IsConnected()) then
       return
     end
 
@@ -636,9 +636,9 @@ if (SERVER) then
   function library:on_prefix_set()
     util.AddNetworkstring(self:get_name() .. '.message')
 
-    if (!self.mysql) then
+    if (!self.db) then
       print_log('SQL wrapper not loaded trying to include now...')
-      self.mysql = include('dependencies/sqlwrapper/mysql.lua')
+      self.db = include('dependencies/sqlwrapper/mysql.lua')
     end
 
     --[[
@@ -646,11 +646,11 @@ if (SERVER) then
     --]]
     hook.Add('PlayerInitialSpawn', self:get_name() .. ':PlayerInitialSpawn', function(player)
       for model_name, model in pairs(library.model) do
-        if (model.__replication.enabled) then
+        if (model._replication.enabled) then
           self:network_model(model)
 
-          if (model.__schema.__sync) then
-            for k, v in pairs(library.__buffer[model_name]) do
+          if (model._schema.__sync) then
+            for k, v in pairs(library._buffer[model_name]) do
               self:network_object(v)
             end
           end
@@ -662,13 +662,13 @@ if (SERVER) then
       local message = net.ReadUInt(8)
 
       if (message == MESSAGE.REQUEST) then
-        local model_name = net.Readstring()
+        local model_name = net.ReadString()
 
         if (self:check_request_condition(model_name, player)) then
           local model = self.model[model_name]
-          local schema = model.__schema
+          local schema = model._schema
 
-          local req_id = net.Readstring()
+          local req_id = net.ReadString()
           local criteria = self:read_net_table()
 
           local method = criteria[1]
@@ -685,8 +685,8 @@ if (SERVER) then
               local result = model[method](model, key, value)
 
               self:start_net_msg(MESSAGE.REQUEST)
-                net.Writestring(req_id)
-                net.Writestring(model_name)
+                net.WriteString(req_id)
+                net.WriteString(model_name)
 
                 net.WriteBool(search_method.single_result)
 
@@ -716,8 +716,8 @@ if (SERVER) then
                 end
 
                 self:start_net_msg(MESSAGE.REQUEST)
-                  net.Writestring(req_id)
-                  net.Writestring(model_name)
+                  net.WriteString(req_id)
+                  net.WriteString(model_name)
 
                   net.WriteBool(search_method.single_result)
 
@@ -760,8 +760,8 @@ if (CLIENT) then
     local id = self.config.prefix .. CurTime() .. '-' .. math.random(100000, 999999)
 
     self:start_net_msg(MESSAGE.REQUEST)
-      net.Writestring(name)
-      net.Writestring(id)
+      net.WriteString(name)
+      net.WriteString(id)
       
       self:write_net_table(criteria)
     net.SendToServer()
@@ -795,7 +795,7 @@ if (CLIENT) then
     }, library.meta.object)
 
     if (add_to_buffer) then
-      table.insert(library.__buffer[self.__name], object)
+      table.insert(library._buffer[self.__name], object)
     end
 
     return object
@@ -837,12 +837,12 @@ if (CLIENT) then
 
   function library:setup_model(name, schema)
     local model = setmetatable({
-      __schema = schema,
+      _schema = schema,
       __name = name
     }, self.meta.model)
 
     self.model[name] = model
-    self.__buffer[name] = {}
+    self._buffer[name] = {}
   end
 
   --[[
@@ -853,8 +853,8 @@ if (CLIENT) then
       local message = net.ReadUInt(8)
 
       if (message == MESSAGE.REQUEST) then
-        local id = net.Readstring()
-        local model_name = net.Readstring()
+        local id = net.ReadString()
+        local model_name = net.ReadString()
         local single_result = net.ReadBool()
         local model = self.model[model_name]
 
@@ -875,12 +875,12 @@ if (CLIENT) then
           self.queue.pull[id] = nil
         end
       elseif (message == MESSAGE.SCHEMA) then
-        local name = net.Readstring()
+        local name = net.ReadString()
         local schema = self:read_net_table()
 
         self:setup_model(name, schema)
       elseif (message == MESSAGE.UPDATE) then
-        local model_name = net.Readstring()
+        local model_name = net.ReadString()
         local model = self.model[model_name]
 
         if (!model) then
@@ -891,7 +891,7 @@ if (CLIENT) then
         local data = self:read_net_table(data)
         local found = false
 
-        for id, object in pairs(self.__buffer[model_name]) do
+        for id, object in pairs(self._buffer[model_name]) do
           if (object.id == data.id) then
             for k, v in pairs(data) do
               object[k] = v
